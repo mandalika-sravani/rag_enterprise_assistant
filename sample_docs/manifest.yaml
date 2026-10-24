@@ -1,0 +1,46 @@
+# Access metadata for the sample document collection.
+#
+# department:   "all" (any department) or a department slug (engineering, hr, finance, ...)
+# access_level: public < internal < restricted
+#
+# Files that are NOT listed here (and have no <file>.meta.yaml sidecar) fall back to
+# `defaults`, which is deny-by-default: an unknown department at restricted level.
+# Only admins can see such files until someone classifies them.
+
+defaults:
+  department: unassigned
+  access_level: restricted
+
+documents:
+  employee_handbook.md:
+    title: Employee Handbook
+    department: all
+    access_level: internal
+  contractor_guidelines.md:
+    title: Contractor Guidelines
+    department: all
+    access_level: public
+  onboarding_guide.docx:
+    title: New Joiner Onboarding Guide
+    department: all
+    access_level: public
+  team_wiki_faq.html:
+    title: Office FAQ (Team Wiki)
+    department: all
+    access_level: public
+  it_security_policy.pdf:
+    title: IT Security Policy
+    department: all
+    access_level: internal
+  deployment_runbook.md:
+    title: Production Deployment Runbook
+    department: engineering
+    access_level: internal
+  procurement_policy.docx:
+    title: Procurement and Purchase Approval Policy
+    department: finance
+    access_level: internal
+  compensation_guidelines.html:
+    title: Compensation Guidelines
+    department: hr
+    access_level: restricted

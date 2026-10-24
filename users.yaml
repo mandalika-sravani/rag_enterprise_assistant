@@ -1,0 +1,36 @@
+# Demo users. Each user authenticates with the X-API-Key header.
+#
+# These keys are DEMO credentials for a local prototype, not secrets. In production
+# identity would come from SSO (OIDC/JWT) and department/clearance from the HR system.
+#
+# A user can read a document when BOTH hold:
+#   1. document.department is "all", or is in user.departments (or user.departments has "*")
+#   2. rank(document.access_level) <= rank(user.clearance)    (public=0, internal=1, restricted=2)
+
+users:
+  alice:
+    name: Alice (Software Engineer)
+    api_key: alice-demo-key
+    departments: [engineering]
+    clearance: internal
+  harry:
+    name: Harry (HR Manager)
+    api_key: harry-demo-key
+    departments: [hr]
+    clearance: restricted
+  fiona:
+    name: Fiona (Finance Analyst)
+    api_key: fiona-demo-key
+    departments: [finance]
+    clearance: internal
+  carl:
+    name: Carl (Contractor)
+    api_key: carl-demo-key
+    departments: []
+    clearance: public
+  admin:
+    name: Knowledge Base Admin
+    api_key: admin-demo-key
+    departments: ["*"]
+    clearance: restricted
+    is_admin: true

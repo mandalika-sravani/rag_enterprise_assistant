@@ -1,0 +1,35 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	rewrite(rewrite)
+	retrieve(retrieve)
+	plan(plan)
+	research(research)
+	generate(generate)
+	verify(verify)
+	abstain(abstain)
+	remember(remember)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> rewrite;
+	abstain --> remember;
+	generate -.-> remember;
+	generate -.-> verify;
+	plan --> research;
+	research -.-> abstain;
+	research -.-> generate;
+	retrieve -.-> abstain;
+	retrieve -.-> generate;
+	rewrite -.-> plan;
+	rewrite -.-> retrieve;
+	verify -.-> abstain;
+	verify -.-> generate;
+	verify -.-> remember;
+	remember --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knowledge Assistant</title>
+<style>
+  :root { --bg:#f6f7f9; --panel:#fff; --ink:#1d2330; --muted:#667085; --line:#e3e6ec; --accent:#2f5bea;
+          --ok:#127a46; --warn:#a15c00; --bad:#b42318; --chip:#eef2ff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#12151b; --panel:#1b1f27; --ink:#e7eaf0; --muted:#98a2b3;
+          --line:#2b313c; --accent:#7c9bff; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --chip:#242b3d; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px 16px; border-bottom:1px solid var(--line); background:var(--panel); }
+  header h1 { font-size:16px; margin:0 auto 0 0; }
+  select, button, input { font:inherit; color:inherit; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+  button { cursor:pointer; } button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  main { max-width:860px; margin:0 auto; padding:16px; }
+  #log { display:flex; flex-direction:column; gap:12px; margin-bottom:96px; }
+  .msg { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .user { align-self:flex-end; background:var(--chip); max-width:85%; }
+  .meta { color:var(--muted); font-size:12.5px; margin-top:8px; }
+  .status { font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .answered { color:var(--ok); } .insufficient_evidence { color:var(--warn); } .clarification_needed { color:var(--accent); } .error { color:var(--bad); }
+  .cites { margin:8px 0 0; padding-left:18px; font-size:13.5px; } .cites li { margin:4px 0; }
+  .cites small { color:var(--muted); display:block; }
+  details { margin-top:8px; font-size:13px; } summary { cursor:pointer; color:var(--muted); }
+  .step { font-family:ui-monospace, Consolas, monospace; font-size:12.5px; margin:3px 0; overflow-wrap:anywhere; }
+  form { position:fixed; bottom:0; left:0; right:0; background:var(--panel); border-top:1px solid var(--line); padding:12px 16px; }
+  form .row { max-width:860px; margin:0 auto; display:flex; gap:8px; } form input { flex:1; min-width:0; }
+  .hint { color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Enterprise Knowledge Assistant</h1>
+  <label>User
+    <select id="user">
+      <option value="alice-demo-key">Alice (Engineer)</option>
+      <option value="harry-demo-key">Harry (HR Manager)</option>
+      <option value="fiona-demo-key">Fiona (Finance)</option>
+      <option value="carl-demo-key">Carl (Contractor)</option>
+      <option value="admin-demo-key">Admin</option>
+    </select>
+  </label>
+  <label>Mode
+    <select id="mode"><option>auto</option><option>simple</option><option>agent</option></select>
+  </label>
+  <button id="reset" type="button">New conversation</button>
+</header>
+<main>
+  <p class="hint">Ask about leave, remote work, security, deployments, purchases or salary bands. Switching user starts a new conversation. API docs: <a href="/docs">/docs</a></p>
+  <div id="log"></div>
+</main>
+<form id="f">
+  <div class="row">
+    <input id="q" placeholder="Ask a question..." autocomplete="off" maxlength="1000" required>
+    <button class="primary">Ask</button>
+  </div>
+</form>
+<script>
+const $ = (id) => document.getElementById(id);
+let sessionId = null;
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function add(html, cls) { const d = document.createElement("div"); d.className = "msg " + cls; d.innerHTML = html; $("log").appendChild(d); d.scrollIntoView({behavior:"smooth"}); return d; }
+function reset(note) { sessionId = null; if (note) add(`<span class="hint">${esc(note)}</span>`, ""); }
+$("reset").onclick = () => reset("New conversation started.");
+$("user").onchange = () => reset("Switched to " + $("user").selectedOptions[0].text + " - new conversation.");
+$("f").onsubmit = async (e) => {
+  e.preventDefault();
+  const q = $("q").value.trim(); if (!q) return;
+  $("q").value = ""; add(esc(q), "user");
+  const pending = add('<span class="hint">Thinking...</span>', "");
+  try {
+    const r = await fetch("/ask", { method:"POST", headers:{"Content-Type":"application/json", "X-API-Key":$("user").value},
+      body: JSON.stringify({question:q, session_id:sessionId, mode:$("mode").value}) });
+    const b = await r.json();
+    if (!r.ok) { pending.innerHTML = `<span class="status error">error ${r.status}</span><div>${esc(b.message || JSON.stringify(b.detail))}</div>`; if (r.status === 404) reset(); return; }
+    sessionId = b.session_id;
+    const cites = b.citations.map(c => `<li><b>[${c.n}]</b> ${esc(c.title)} - ${esc(c.file)}${c.section ? " &middot; " + esc(c.section) : ""}${c.page ? " &middot; page " + c.page : ""}<small>${esc(c.snippet)}</small></li>`).join("");
+    const steps = (b.agent_steps || []).map((s, i) => { const k = s.indexOf(": "); return `<div class="step">${i + 1}. [${esc(s.slice(0, k))}] ${esc(s.slice(k + 2))}</div>`; }).join("");
+    pending.innerHTML = `<div class="status ${b.status}">${b.status.replace(/_/g, " ")}</div><div>${esc(b.answer)}</div>
+      ${cites ? `<ol class="cites">${cites}</ol>` : ""}
+      ${steps ? `<details open><summary>Agent trace</summary>${steps}</details>` : ""}
+      <div class="meta">evidence_sufficient=${b.evidence_sufficient} &middot; mode=${b.mode} &middot; ${Math.round(b.latency_ms)} ms &middot; ${b.usage.llm_calls} LLM call(s) &middot; ${b.usage.input_tokens}/${b.usage.output_tokens} tokens &middot; ~$${b.usage.cost_usd.toFixed(5)}<br>standalone query: ${esc(b.standalone_question)}</div>`;
+  } catch (err) { pending.innerHTML = `<span class="status error">network error</span> ${esc(err)}`; }
+};
+</script>
+</body>
+</html>
