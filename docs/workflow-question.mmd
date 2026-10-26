@@ -1,0 +1,54 @@
+sequenceDiagram
+    autonumber
+    actor U as User (chat page / Swagger / CLI)
+    participant API as FastAPI + Pydantic<br/>api.py, auth.py
+    participant A as Assistant<br/>assistant.py
+    participant G as LangGraph graph<br/>graph.py
+    participant S as Search<br/>search.py
+    participant C as Claude<br/>ChatAnthropic → Anthropic API
+    participant M as Checkpointer + log<br/>InMemorySaver, requests.jsonl
+
+    U->>API: POST /ask {question, session_id?}<br/>header X-API-Key
+    API->>API: key → User (department, clearance)<br/>validate body (Pydantic)<br/>⠀
+    API->>A: ask(user, question, session_id, mode)
+    A->>M: session owner check (get_state)
+    A->>G: invoke(state, thread_id = session_id)
+
+    Note over G: node: rewrite
+    G->>M: load last 6 turns of history
+    opt there is history
+        G->>C: RewriteOut (standalone question)
+        C-->>G: "What is the remote work policy for contractors?"
+    end
+
+    Note over G: route: multi-part question?
+    alt single topic → node: retrieve
+        G->>S: search(question, user, k=5)
+    else multi-part → nodes: plan + research (agent)
+        G->>C: Plan (up to 3 sub-questions)
+        C-->>G: sub-questions
+        G->>S: search(each sub-question, user, k=3)
+    end
+    S->>S: can_read filter BEFORE ranking<br/>bge-small vectors + BM25 → Reciprocal Rank Fusion<br/>⠀
+    S-->>G: allowed chunks + similarity scores
+
+    alt best similarity < 0.45 → node: abstain
+        G->>G: "not enough information" (no Claude call)<br/>⠀
+    else relevant → node: generate
+        G->>G: remove instruction-like text, escape,<br/>label chunks S1..S5<br/>⠀
+        G->>C: AnswerOut (status, answer with [S1], sources)
+        C-->>G: draft answer
+        G->>G: keep only supplied S-ids, renumber [1] [2]<br/>no valid citation → abstain<br/>⠀
+        opt agent path → node: verify
+            G->>C: Check (are all claims supported?)
+            C-->>G: supported / unsupported claims
+            Note over G: unsupported: back to generate ONCE,<br/>still unsupported → abstain
+        end
+    end
+
+    Note over G: node: remember
+    G->>M: save question + answer (no document text)
+    G-->>A: final state (answer, citations, steps)
+    A->>M: append one JSON line: retrieval, tokens, latency, cost
+    A-->>API: AskResponse (validated)
+    API-->>U: JSON: answer, citations, status, evidence_sufficient,<br/>standalone_question, agent_steps, usage, session_id

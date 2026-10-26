@@ -1,0 +1,5 @@
+flowchart LR
+    A["<b>1. Read files</b><br/>sample_docs: MD, HTML, PDF, DOCX<br/><i>pypdf, python-docx, BeautifulSoup</i>"] --> B["<b>2. Attach access metadata</b><br/>manifest.yaml: department + level<br/>unlisted file = admins only<br/><i>PyYAML</i>"]
+    B --> C["<b>3. Split into chunks</b><br/>by heading, then ~900 chars / 150 overlap<br/><i>LangChain header splitters +<br/>RecursiveCharacterTextSplitter</i>"]
+    C --> D["<b>4. Embed</b><br/>384 numbers per chunk<br/><i>bge-small-en-v1.5 via<br/>fastembed + ONNX Runtime (CPU)</i>"]
+    D --> E[("<b>5. Store</b><br/>InMemoryVectorStore<br/>data/vectorstore.json<br/><i>LangChain core</i>")]

@@ -14,8 +14,18 @@ from .llm import LLMError
 
 class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
-    session_id: str | None = None
+    session_id: str | None = Field(default=None, description="Leave out for a new conversation; "
+                                   "send the session_id from the previous answer to ask a follow-up.")
     mode: Literal["auto", "simple", "agent"] = "auto"
+
+    # What the /docs page pre-fills (instead of the placeholder "string", which is an unknown session).
+    model_config = {"json_schema_extra": {"examples": [{"question": "How long must passwords be?", "mode": "auto"}]}}
+
+
+ERRORS = {code: {"description": text} for code, text in {
+    401: "Missing or invalid X-API-Key", 404: "Unknown session_id (or another user's)", 422: "Invalid request body",
+    429: "Rate limited by the model provider", 502: "Model returned an invalid response",
+    503: "Model service unavailable", 504: "Model timed out"}.items()}
 
 
 def create_app(assistant: Assistant | None = None) -> FastAPI:
@@ -54,7 +64,7 @@ def create_app(assistant: Assistant | None = None) -> FastAPI:
         """Chat page: pick a user, ask questions, see citations and agent steps."""
         return FileResponse(Path(__file__).parent / "static" / "index.html")
 
-    @app.post("/ask", response_model=AskResponse)
+    @app.post("/ask", response_model=AskResponse, responses=ERRORS)
     def ask(body: AskRequest, user: Annotated[User, Depends(current_user)]):
         """Ask a question. Send back the returned session_id to ask a follow-up."""
         return get_assistant().ask(user, body.question, body.session_id, body.mode)
